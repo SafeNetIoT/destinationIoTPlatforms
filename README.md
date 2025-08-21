@@ -1,5 +1,7 @@
 # Destination Analysis of IoT Traffic
 
+Examines where IoT devices send their data, by mapping cloud endpoints, identifying server ownership, and classifying traffic as first-party, support, or third-party across regions and timelines.
+
 ## 1. Input files
 First, generate a list of file paths for the PCAP files in your dataset. Use the following command:
 ```
@@ -26,4 +28,4 @@ Run ipynb files from `scripts/getorg/
 Run party.py and use FirstPartyDomains.py to get a list of all the first party domains as a .txt file
 
 ## 5. IP Geo location 
-Use Geolite database to extract countries (IPInfo if you have license) 
+Download Geolite database from MaxMind Website and run GeoLiteCountry.py to find Geolocation (IPInfo if you have license) 
