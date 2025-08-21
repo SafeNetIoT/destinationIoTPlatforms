@@ -1,0 +1,1 @@
+# check if a domain is an ads, tracking, or analytics domain
