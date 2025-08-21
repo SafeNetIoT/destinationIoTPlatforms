@@ -5,15 +5,15 @@ import requests
 import pandas as pd
 
 # Paths to GeoIP databases (update with actual paths)
-GEOIP_COUNTRY_DB = "/Users/lepakshi/Downloads/GeoLite2-Country_20250325/GeoLite2-Country.mmdb"
-GEOIP_ASN_DB = "/Users/lepakshi/Downloads/GeoLite2-ASN_20250325/GeoLite2-ASN.mmdb"
+GEOIP_COUNTRY_DB = "Path to GeoLite2-Country.mmdb file"
+GEOIP_ASN_DB = "Path to GeoLite2-ASN.mmdb file"
 
 # Input file paths
-FILE1 = "/Users/lepakshi/Downloads/cleaned_file.csv"
-FILE2 = "/Users/lepakshi/Downloads/output.csv"
+FILE1 = "Path to organisation file in .csv format"
+FILE2 = "Path to IP to SLD mapping file in .csv format"
 
 # Output file
-OUTPUT_FILE = "/Users/lepakshi/Downloads/output_unknown.csv"
+OUTPUT_FILE = "Path to output file in .csv format"
 
 # RIPE API URL
 RIPE_API_URL = "https://stat.ripe.net/data/prefix-overview/data.json?resource={}"
@@ -82,4 +82,4 @@ for index, row in df1.iterrows():
 # Save the final CSV
 df1.to_csv(OUTPUT_FILE, index=False)
 
-print(f" Processing complete! Enriched data saved to {OUTPUT_FILE}")
+print(f"Processing complete! Enriched data saved to {OUTPUT_FILE}")
