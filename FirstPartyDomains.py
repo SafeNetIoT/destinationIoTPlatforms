@@ -1,10 +1,10 @@
 import os
 
 # Define the MAC address
-MAC_ADDRESS = "9c:9c:1f:91:e1:b6"
+MAC_ADDRESS = "give one MAC Address at a time"
 
 # Base directory
-BASE_DIR = os.path.expanduser("~/snap/snapd-desktop-integration/current/Documents/Appliance")
+BASE_DIR = os.path.expanduser("path to directory")
 MAC_DIR = os.path.join(BASE_DIR, MAC_ADDRESS)
 
 # First-party output file
