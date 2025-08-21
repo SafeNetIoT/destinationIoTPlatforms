@@ -81,8 +81,8 @@ def save_to_csv(data, output_path):
 
 
 def main():
-    base_path = os.path.expanduser("~/snap/snapd-desktop-integration/current/Documents/Appliance/8:e9:f6:2a:2e:a2")
-    output_base_path = os.path.expanduser("~/snap/snapd-desktop-integration/current/Documents/categorized_domains")
+    base_path = os.path.expanduser("path to MAC Address Directory")
+    output_base_path = os.path.expanduser("~path to categorized_domains directory which has ip_list directory")
 
     years = ['2023', '2024', '2025']
     months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
