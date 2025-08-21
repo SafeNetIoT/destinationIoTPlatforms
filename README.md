@@ -1,6 +1,4 @@
-# Destination Analysis
-
-`tshark version 4.2.2`
+# Destination Analysis of IoT Traffic
 
 ## 1. Input files
 First, generate a list of file paths for the PCAP files in your dataset. Use the following command:
@@ -18,13 +16,15 @@ Get list of IPs from PCAP files. Use the domain-to-ip mappings from last step to
 python3 destination_analysis.py map_ips --input_file /inputs/{year}/xxx.txt --output_dir /your_output_dir --exp your_exp_name_for_logging
 ```
 ### Optional: if already have domain to IP mappings from uncontrolled datasets. Skip step 2. 
-Run step 3 destiantion_analysis.py to get the list of IPs. 
+Run step 3 destination_analysis.py to get the list of IPs. 
 Then, run `python3 scripts/ip_to_domain/ip_to_domain_with_uncontrolled_dns.py` to translate IPs to domains 
 
+## 4. Get Domain Organization 
+Run ipynb files from `scripts/getorg/
 
-## 4. Get Domain Orgnazation 
-Run ipynb files from `scripts/getorg/`
-`getorg.ipynb` is the working version. `getorg_2025Jan.ipynb` is the clean version
+## 5. To Categorise SLDs into First, Second and Third Party
+Run party.py
+Use FirstPartyDomains.py to get a list of all the first party domains as a .txt file
 
-## 5. IP Geo location (still working on it)
-`scripts/ip-geo/`
+## 5. IP Geo location 
+Use Geolite database to extract countries (IPInfo if you have license) 
