@@ -23,8 +23,7 @@ Then, run `python3 scripts/ip_to_domain/ip_to_domain_with_uncontrolled_dns.py` t
 Run ipynb files from `scripts/getorg/
 
 ## 5. To Categorise SLDs into First, Second and Third Party
-Run party.py
-Use FirstPartyDomains.py to get a list of all the first party domains as a .txt file
+Run party.py and use FirstPartyDomains.py to get a list of all the first party domains as a .txt file
 
 ## 5. IP Geo location 
 Use Geolite database to extract countries (IPInfo if you have license) 
