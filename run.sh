@@ -1,8 +1,8 @@
 #!bin/bash
 
 # Destination Analysis - Run
-INPUT_DIR="/home/hutr/iot-longitudinal/input_files/all_devices_remove_duplicates/"
-OUTPUT_BASE="/home/hutr/iot-longitudinal/output_destination/all_devices_remove_duplicates/"
+INPUT_DIR="Path to input directory"
+OUTPUT_BASE="Path to ouput file"
 
 # ## First step: extract domain-ip mappings and get domain list from DNS/TLS data
 for INPUT_FILE in "${INPUT_DIR}"*; do
