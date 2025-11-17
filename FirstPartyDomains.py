@@ -1,26 +1,40 @@
 import os
+import argparse
+import json
 
-# Define the MAC address
-MAC_ADDRESS = "give one MAC Address at a time"
+def get_first_party_domains(manufacturer):
+    """Get first-party domains based on manufacturer"""
+    manufacturer_domains = {
+        "Sonos": ["sonos.com", "sonos.net", "sonosapi.com"],
+        "Amazon": ["amazon.com", "amazonalexa.com", "alexa.com"],
+        "Google": ["google.com", "googleapis.com", "gstatic.com", "nest.com"],
+        "Tuya": ["tuya.com", "tuyaus.com", "tuyaeu.com", "tuyacn.com"],
+        "Ring": ["ring.com", "ringapis.com"],
+        "Wyze": ["wyze.com", "wzconnect.com"],
+        # Add more manufacturers as needed
+    }
+    return manufacturer_domains.get(manufacturer, [])
 
-# Base directory
-BASE_DIR = os.path.expanduser("path to directory")
-MAC_DIR = os.path.join(BASE_DIR, MAC_ADDRESS)
-
-# First-party output file
-FIRST_PARTY_FILE = os.path.join(MAC_DIR, "first_party_domains.txt")
-
-# First-party domains
-FIRST_PARTY_DOMAINS = ["vesync.com",
-"ntp.vesync.com",
-"vdmpmqtt.vesync.com"]
-
-# Ensure the MAC directory exists
-if not os.path.exists(MAC_DIR):
-    print(f"Error: Directory {MAC_DIR} not found.")
-else:
-    # Write first-party domains to the file
-    with open(FIRST_PARTY_FILE, "w") as f:
-        for domain in FIRST_PARTY_DOMAINS:
+def main():
+    parser = argparse.ArgumentParser(description="Generate first-party domains for a manufacturer")
+    parser.add_argument("--manufacturer", required=True, help="Manufacturer name (e.g., Sonos, Amazon)")
+    parser.add_argument("--output", required=True, help="Output file path")
+    
+    args = parser.parse_args()
+    
+    # Get domains for the manufacturer
+    first_party_domains = get_first_party_domains(args.manufacturer)
+    
+    # Ensure output directory exists
+    os.makedirs(os.path.dirname(args.output), exist_ok=True)
+    
+    # Write to file
+    with open(args.output, "w") as f:
+        for domain in first_party_domains:
             f.write(domain + "\n")
-    print(f"First-party domains saved to {FIRST_PARTY_FILE}")
+    
+    print(f"First-party domains for {args.manufacturer} saved to {args.output}")
+    print(f"Domains: {', '.join(first_party_domains)}")
+
+if __name__ == "__main__":
+    main()
