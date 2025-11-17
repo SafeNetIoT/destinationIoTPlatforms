@@ -50,25 +50,41 @@ def extract_sld_tld(domain):
     return ext.domain, ext.suffix
 
 
-def categorize_domains(contacted_domains, unique_domains, ip_map):
+def categorize_domains(contacted_domains, unique_domains, ip_map, platform_file=None):
+    """Categorize domains with IoT platform-party support"""
+    
+    # Load IoT platform detection results if available
+    platform_domains = set()
+    if platform_file and os.path.exists(platform_file):
+        with open(platform_file, 'r') as f:
+            platform_data = json.load(f)
+            for platform, domains in platform_data.get('platform_endpoints', {}).items():
+                if platform != "Support Services":
+                    platform_domains.update(domains)
+    
     support_party_list = ['aws', 'cloudflare', 'akamai', 'fastly', 'cdn', 'dns', 'digicert']
     categorized_data = []
+    
     for domain in contacted_domains:
         sld, tld = extract_sld_tld(domain)
-        category = "First-party" if domain in unique_domains else "Third-party"
         org = ip_map.get(domain, {}).get("organization", "Unknown")
         query_type = ip_map.get(domain, {}).get("query_type", "Unknown")
 
-        if org == "Unknown":
-            whois_data = get_whois_data(domain)
-            org = extract_organization(whois_data)
-
-        for s in support_party_list:
-            if s in org.lower():
-                category = "Support-party"
-                break
+        # DETERMINE CATEGORY - NEW LOGIC
+        if domain in platform_domains:
+            category = "Platform-party"
+        elif domain in unique_domains:
+            category = "First-party" 
+        else:
+            category = "Third-party"
+            # Check if it's actually support-party
+            for s in support_party_list:
+                if s in org.lower() or s in domain.lower():
+                    category = "Support-party"
+                    break
 
         categorized_data.append([domain, sld, tld, category, org, query_type])
+    
     return categorized_data
 
 
