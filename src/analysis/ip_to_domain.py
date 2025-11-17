@@ -82,7 +82,15 @@ def compute_ip_to_domain(input_data:str, output_dir: str): #  sld:bool=False, ip
                 device_ips[device_name] = list(ips)
             except Exception as e:
                 logger.error(f"Error processing device {device_name}: {e}")
+    # IoT Platform Detection - NEW
+    logger.info("Running IoT platform detection...")
+    platform_results = detect_iot_platforms(contacted_domains, ip_to_domain_map)
+    platform_output_dir = os.path.join(output_dir, "platform_analysis")
+    os.makedirs(platform_output_dir, exist_ok=True)
     
+    with open(os.path.join(platform_output_dir, "platforms_detected.json"), 'w') as f:
+        json.dump(platform_results, f, indent=4)
+    logger.info(f"IoT platform detection completed. Results saved.")
     # Save intermediate IP results
     ip_file_path = os.path.join(ip_output_dir, "all_ips.json")
     with open(ip_file_path, 'w') as f:
