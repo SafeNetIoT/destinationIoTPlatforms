@@ -1,4 +1,4 @@
-# Destination Analysis of IoT Traffic
+# Destination Analysis of IoT Traffic -- edited to specifically extract IoT platforms
 
 Examines where IoT devices send their data, by mapping cloud endpoints, identifying server ownership, and classifying traffic as first-party, support, or third-party across regions and timelines.
 
