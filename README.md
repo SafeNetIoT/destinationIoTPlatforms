@@ -1,70 +1,156 @@
-# Destination Analysis of IoT Traffic -- edited to specifically extract IoT platforms
+#EXTRACTING AND CLASSIFYING DESTINATIONS 
 
-Examines where IoT devices send their data, by mapping cloud endpoints, identifying server ownership, and classifying traffic as first-party, support, or third-party across regions and timelines.
+Examines where IoT devices send their data by extracting DNS/TLS destinations from PCAP files, mapping IPs to domains, identifying cloud and platform dependencies, and classifying traffic as first-party, support-party, third-party, or platform-party over time (monthly longitudinal analysis).
 
-## 1. Input files
-First, generate a list of file paths for the PCAP files in your dataset. Use the following command:
-```
-find /your-dataset-path > inputs/{year}/xxx.txt 
-```
-## 2. Get domain to IP mappings
-Extract domain-to-IP mappings from DNS queries and TLS handshakes:
-```
-python3 destination_analysis.py domains --input_file /inputs/{year}/xxx.txt --output_dir /your_output_dir  --exp your_exp_name_for_logging
-```
-Output: A file (domains.json) listing all destinations
+This pipeline works for any IoT device as long as PCAPs follow the format: YYYY-MM-DD_HH.MM.SS_<deviceIP>.pcap
 
-## 3. Map IPs to Domains & Detect IoT Platforms
-Extract all destination IPs and identify IoT platform usage:
+and are stored under: /data/disk1/traffic/by-name/<device>/ctrl2/
+
+
+
+**1. Input Files (Per-Month Longitudinal Setup)**
+Generate a monthly list of PCAP files.
+The pipeline groups files by filename pattern: YYYY-MM-*.pcap
+
+Example command (automated inside run_longitudinal.sh):
+
 ```
-python3 destination_analysis.py map_ips --input_file /inputs/{year}/xxx.txt --output_dir /your_output_dir --exp your_exp_name_for_logging
-python3 iot_platform_detector.py --domain_file analysis/sonos_one/domains.json --ip_file analysis/sonos_one/ip_mappings.json --output analysis/sonos_one/platforms_detected.json
+find /data/disk1/traffic/by-name/<device>/ctrl2 \
+    -type f -name "2025-07-*.pcap" \
+    > inputs/<device>_longitudinal/2025/Jul_2025.txt
 ```
-Output: A clear report (platforms_detected.json) in the following format:
+Running the provided script:
 ```
+./run_longitudinal.sh
+```
+
+This automatically creates all per-month input lists for all years you specify.
+
+
+**2. Get Domain-to-IP Mappings (Per Month)**
+Extract domain-to-IP mappings from DNS queries and TLS handshakes for each month:
+
+```
+python3 destination_analysis.py domains \
+    --input_file inputs/<device>_longitudinal/<year>/<Mon_Year>.txt \
+    --output_dir analysis_longitudinal/<device>/<year>/<Mon_Year> \
+    --exp <device>_domains
+```
+Output written to:
+analysis_longitudinal/<device>/<year>/<Mon_Year>/domain_list/
+    contacted_domains.json
+    unique_domains.json
+
+
+**3. Extract IPs & Derive IP→Domain Map (Per Month)**
+```
+python3 destination_analysis.py map_ips \
+    --input_file inputs/<device>_longitudinal/<year>/<Mon_Year>.txt \
+    --output_dir analysis_longitudinal/<device>/<year>/<Mon_Year> \
+    --exp <device>_ipmap
+```   
+Output:
+analysis_longitudinal/<device>/<year>/<Mon_Year>/ip_list/
+    all_ips.json
+    ip_domain_map.pkl   (organization data may be empty initially)
+
+If ip_domain_map.pkl is missing (new device / new month), initialize empty files:
+python3 init_empty_ip_maps.py <device> <year1> <year2> ...
+This ensures later steps run without interruption.
+
+
+**4. Organizational Attribution (Optional but Recommended)**
+Organizational lookup can be added manually or automated later.
+You may also enrich ip_domain_map.pkl using the notebooks in:
+scripts/getorg/
+
+
+5**. Longitudinal Traffic Classification (First / Support / Third / Platform)**
+The enhanced classifier (party.py) categorizes every contacted domain per month.
+Run:
+```
+python3 party.py \
+    --device <device> \
+    --years <year1> <year2> ... \
+    --base_dir analysis_longitudinal
+```
+Output:
+analysis_longitudinal/<device>/categorized_domains_Jul_2025.csv
+analysis_longitudinal/<device>/categorized_domains_Aug_2025.csv
+...
+
+To generate first-party reference lists:
+```
+python3 FirstPartyDomains.py \
+    --manufacturer "Sonos" \
+    --output analysis/<device>/first_party_domains.txt
+```
+
+
+**6. IP Geolocation**
+```
+python3 geolocate_ips.py \
+    --input analysis_longitudinal/<device>/<year>/<Mon_Year>/ip_list/all_ips.json \
+    --output analysis_longitudinal/<device>/<year>/<Mon_Year>/geolocation.json \
+    --db GeoLite2-Country.mmdb
+```
+Output example:
 {
-  "primary_platform": "AWS IoT Core",
-  "platforms_detected": [
-    {"platform": "AWS IoT Core", "confidence": 0.95, "evidence": ["iot.us-east-1.amazonaws.com"]},
-    {"platform": "Tuya IoT", "confidence": 0.32, "evidence": ["a1.tuyaus.com"]}
-  ],
-  "platform_endpoints": {
-    "AWS IoT Core": ["iot.us-east-1.amazonaws.com", "data-ats.iot.us-east-1.amazonaws.com"],
-    "Support Services": ["s3.amazonaws.com", "cloudfront.net"]
+  "23.194.10.201": {
+    "country_iso_code": "IE",
+    "country_name": "Ireland"
   }
 }
+
+
+
+**7. Using the Pipeline for ANY New Device**
+For a device named <new_device>:
+Ensure PCAPs live in:
+/data/disk1/traffic/by-name/<new_device>/ctrl2/
+
+Edit the following at the top of run_longitudinal.sh:
+DEVICE_NAME="<new_device>"
+YEARS="2023 2024 2025"
+
+Run the entire extraction:
 ```
-## 4. Organizational Attribution & Platform Validation
-Run ipynb files from `scripts/getorg/ to VALIDATE STEP 3 
+./run_longitudinal.sh
 ```
-# NEW: Automated organizational resolution
-python3 destination_analysis.py resolve_orgs --domain_file analysis/sonos_one/domains.txt --output_file analysis/sonos_one/organizations.json --exp sonos_orgs
+Initialize empty organization maps:
 ```
-Output: A file (organizations.json) that links every domain to company owner 
-
-## 5. Traffic Classification & Geographic Analysis
-Classify traffic with enhanced platform-party category:
-First-party: Device manufacturer domains (sonos.com, sonos.net)
-
-Platform-party: IoT infrastructure providers (AWS IoT Core, Tuya Cloud)
-
-Support-party: CDNs, analytics, operational services
-
-Third-party: Advertising, tracking, external services
-
+python3 init_empty_ip_maps.py <new_device> 2023 2024 2025
 ```
-# Enhanced classification including platform-party
-python3 party.py --platform_file analysis/sonos_one/platforms_detected.json --output analysis/sonos_one/classification.json
-
-# Generate first-party domains list
-python3 FirstPartyDomains.py --manufacturer "Sonos" --output analysis/sonos_one/first_party_domains.txt
-
-# IP geolocation
-python3 GeoLiteCountry.py --input analysis/sonos_one/ip_mappings.json --output analysis/sonos_one/geolocation.json
-
-# Generate comprehensive platform report
-python3 iot_platform_report.py --device sonos_one --output reports/sonos_platform_analysis.pdf
-
+Categorize:
 ```
-A final classification file (classification.json) that neatly categorizes every connection
+python3 party.py \
+    --device <new_device> \
+    --years 2023 2024 2025
+```
+All outputs will appear in:
+analysis_longitudinal/<new_device>/
 
+
+**8. Summary of All Outputs**
+Domain Extraction (per month)
+analysis_longitudinal/<device>/<year>/<Mon_Year>/domain_list/
+    contacted_domains.json
+    unique_domains.json
+
+IP Extraction (per month)
+analysis_longitudinal/<device>/<year>/<Mon_Year>/ip_list/
+    all_ips.json
+    ip_domain_map.pkl
+
+Monthly Domain Categorisation
+analysis_longitudinal/<device>/categorized_domains_<Mon>_<Year>.csv
+
+Optional Geolocation
+geolocation.json
+
+Final Output Example (Monthly CSV)
+Month-Year,Domain,SLD,TLD,Category,Organization,Query Type
+Jul-2025,conn-i-078cd5...ws.sonos.com,sonos,com,First-party,Sonos Inc,A
+Jul-2025,s3.amazonaws.com,amazonaws.com,com,Support-party,Amazon AWS,A
+Jul-2025,cloudfront.net,cloudfront,net,Support-party,Amazon AWS,A
+Jul-2025,metrics.sonos.com,sonos,com,First-party,Sonos Inc,A
