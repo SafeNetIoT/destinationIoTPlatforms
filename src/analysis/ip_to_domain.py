@@ -2,6 +2,14 @@ from src.utils import *
 from src.parsers.ip_extractor import process_pcap_ips
 logger = logging.getLogger(__name__)
 
+def detect_iot_platforms(contacted_domains, ip_to_domain_map):
+    """
+    Temporary stub: real IoT platform detection not implemented here.
+    This lets map_ips run and still produce IP-to-domain mappings.
+    """
+    return {}
+
+
 def translate_ip_to_domain(device_name: str, ips: set, ip_to_domain_map: dict) -> dict:
     """
     Translate IPs into domains using the IP-to-domain mappings.
@@ -83,8 +91,9 @@ def compute_ip_to_domain(input_data:str, output_dir: str): #  sld:bool=False, ip
             except Exception as e:
                 logger.error(f"Error processing device {device_name}: {e}")
     # IoT Platform Detection - NEW
-    logger.info("Running IoT platform detection...")
-    platform_results = detect_iot_platforms(contacted_domains, ip_to_domain_map)
+    logger.info("Skipping IoT platform detection (temporarily disabled due to bug)")
+    platform_results = {}
+
     platform_output_dir = os.path.join(output_dir, "platform_analysis")
     os.makedirs(platform_output_dir, exist_ok=True)
     

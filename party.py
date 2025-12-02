@@ -1,9 +1,11 @@
 import os
 import json
+import argparse
 import pickle
 import csv
 import subprocess
 import ipaddress
+import argparse
 import tldextract
 from collections import defaultdict
 
@@ -97,11 +99,18 @@ def save_to_csv(data, output_path):
 
 
 def main():
-    base_path = os.path.expanduser("path to MAC Address Directory")
-    output_base_path = os.path.expanduser("~path to categorized_domains directory which has ip_list directory")
+    parser = argparse.ArgumentParser(description="Categorize domains (First/Third/Support/Platform) longitudinally")
+    parser.add_argument("--device", required=True, help="Device name (matches folder under analysis_longitudinal/)")
+    parser.add_argument("--base_dir", default="analysis_longitudinal", help="Base directory for longitudinal analysis")
+    parser.add_argument("--years", nargs="+", default=["2023", "2024", "2025"], help="Years to process")
+    args = parser.parse_args()
 
-    years = ['2023', '2024', '2025']
-    months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    base_path = os.path.join(os.path.expanduser(args.base_dir), args.device)
+    output_base_path = base_path  # Save CSVs alongside analysis; change if you prefer
+
+    years = args.years
+    months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+              "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
     for year in years:
         for month in months:
@@ -113,19 +122,35 @@ def main():
                 continue
 
             domain_list_path = os.path.join(folder_path, "domain_list")
-            ip_list_path = os.path.join(folder_path, "ip_list")
 
             contacted_domains_file = os.path.join(domain_list_path, "contacted_domains.json")
-            unique_domains_file = os.path.join(domain_list_path, "unique_domains.json")
-            ip_map_file = os.path.join(domain_list_path, "ip_domain_map.pkl")
+            unique_domains_file    = os.path.join(domain_list_path, "unique_domains.json")
+            ip_map_file            = os.path.join(domain_list_path, "ip_domain_map.pkl")
 
-            if not os.path.exists(contacted_domains_file) or not os.path.exists(
-                    unique_domains_file) or not os.path.exists(ip_map_file):
+            if not (os.path.exists(contacted_domains_file) and
+                    os.path.exists(unique_domains_file) and
+                    os.path.exists(ip_map_file)):
                 continue
 
-            contacted_domains = load_json(contacted_domains_file)
-            unique_domains = load_json(unique_domains_file)
-            ip_map = load_pickle(ip_map_file)
+            contacted_raw = load_json(contacted_domains_file)
+            unique_raw    = load_json(unique_domains_file)
+            ip_map        = load_pickle(ip_map_file)
+
+            # Normalize contacted_domains to a flat list of domains
+            if isinstance(contacted_raw, dict):
+                tmp = []
+                for v in contacted_raw.values():
+                    if isinstance(v, list):
+                        tmp.extend(v)
+                contacted_domains = sorted(set(tmp))
+            else:
+                contacted_domains = contacted_raw
+
+            # Normalize unique_domains: use list directly or dict keys
+            if isinstance(unique_raw, dict):
+                unique_domains = list(unique_raw.keys())
+            else:
+                unique_domains = unique_raw
 
             categorized_data = categorize_domains(contacted_domains, unique_domains, ip_map)
             for entry in categorized_data:
