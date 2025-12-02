@@ -1,0 +1,14 @@
+# Ignore outputs and data
+analysis/
+analysis_longitudinal/
+inputs/
+logs/
+*.mmdb
+*.tar.gz
+
+# Python caches
+__pycache__/
+*.pyc
+
+# System files
+.DS_Store

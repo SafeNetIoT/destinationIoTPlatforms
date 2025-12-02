@@ -1,12 +1,11 @@
 import os
 import json
-import argparse
 import pickle
 import csv
 import subprocess
 import ipaddress
-import argparse
 import tldextract
+import argparse
 from collections import defaultdict
 
 
@@ -22,9 +21,14 @@ def load_pickle(file_path):
 
 def get_whois_data(domain):
     try:
-        result = subprocess.run(['whois', domain], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-        return result.stdout.decode()
-    except:
+        result = subprocess.run(
+            ['whois', domain],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=10
+        )
+        return result.stdout.decode(errors="ignore")
+    except Exception:
         return None
 
 
@@ -33,8 +37,8 @@ def extract_organization(whois_data):
         for line in whois_data.split('\n'):
             if 'Organization' in line or 'OrgName' in line:
                 try:
-                    return line.split(':')[1].strip()
-                except:
+                    return line.split(':', 1)[1].strip()
+                except Exception:
                     continue
     return "Unknown"
 
@@ -52,41 +56,61 @@ def extract_sld_tld(domain):
     return ext.domain, ext.suffix
 
 
-def categorize_domains(contacted_domains, unique_domains, ip_map, platform_file=None):
-    """Categorize domains with IoT platform-party support"""
-    
-    # Load IoT platform detection results if available
-    platform_domains = set()
-    if platform_file and os.path.exists(platform_file):
-        with open(platform_file, 'r') as f:
-            platform_data = json.load(f)
-            for platform, domains in platform_data.get('platform_endpoints', {}).items():
-                if platform != "Support Services":
-                    platform_domains.update(domains)
-    
+def categorize_domains(contacted_domains, unique_domains, ip_map, first_party_suffixes=None):
+    """
+    contacted_domains: list of domains contacted in that month
+    unique_domains: list of domains considered first-party in the original pipeline
+                    (may now be all domains depending on upstream processing)
+    ip_map: domain -> {organization, query_type, ...}
+    first_party_suffixes: optional list of domain suffixes from first_party_domains.txt
+                          e.g. ['sonos.com', 'sonos.net', 'vesync.com']
+    """
     support_party_list = ['aws', 'cloudflare', 'akamai', 'fastly', 'cdn', 'dns', 'digicert']
-    categorized_data = []
+
+    unique_set = set(unique_domains) 
     
+    # unique_domains should be a list; normalize safely:
+    if isinstance(unique_domains, (list, set)):
+        unique_set = set(unique_domains)
+    else:
+        unique_set = set()
+
+    fp_suffixes = [s.lower() for s in (first_party_suffixes or [])]
+
+    categorized_data = []
+
     for domain in contacted_domains:
         sld, tld = extract_sld_tld(domain)
+        d_lower = domain.lower()
+
+        # Original logic: domain is first-party if it is in unique_domains
+        is_first = domain in unique_set
+
+        # Extended logic: also treat anything ending with a known first-party suffix as first-party
+        if not is_first and fp_suffixes:
+            if any(d_lower.endswith(suf) for suf in fp_suffixes):
+                is_first = True
+
+        category = "First-party" if is_first else "Third-party"
+
         org = ip_map.get(domain, {}).get("organization", "Unknown")
         query_type = ip_map.get(domain, {}).get("query_type", "Unknown")
 
-        # DETERMINE CATEGORY - NEW LOGIC
-        if domain in platform_domains:
-            category = "Platform-party"
-        elif domain in unique_domains:
-            category = "First-party" 
-        else:
-            category = "Third-party"
-            # Check if it's actually support-party
-            for s in support_party_list:
-                if s in org.lower() or s in domain.lower():
-                    category = "Support-party"
-                    break
+        # If organization is unknown, try WHOIS
+        if org == "Unknown":
+            whois_data = get_whois_data(domain)
+            extracted_org = extract_organization(whois_data)
+            if extracted_org != "Unknown":
+                org = extracted_org
+
+        # Support-party override based on org name
+        for s in support_party_list:
+            if s in org.lower():
+                category = "Support-party"
+                break
 
         categorized_data.append([domain, sld, tld, category, org, query_type])
-    
+
     return categorized_data
 
 
@@ -99,14 +123,34 @@ def save_to_csv(data, output_path):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Categorize domains (First/Third/Support/Platform) longitudinally")
-    parser.add_argument("--device", required=True, help="Device name (matches folder under analysis_longitudinal/)")
-    parser.add_argument("--base_dir", default="analysis_longitudinal", help="Base directory for longitudinal analysis")
-    parser.add_argument("--years", nargs="+", default=["2023", "2024", "2025"], help="Years to process")
+    parser = argparse.ArgumentParser(
+        description="Categorize domains (First/Support/Third) longitudinally per device"
+    )
+    parser.add_argument("--device", required=True,
+                        help="Device name (matches folder under analysis_longitudinal/)")
+    parser.add_argument("--base_dir", default="analysis_longitudinal",
+                        help="Base directory for longitudinal analysis (default: analysis_longitudinal)")
+    parser.add_argument("--years", nargs="+", default=["2023", "2024", "2025"],
+                        help="Years to process, e.g. --years 2024 2025")
     args = parser.parse_args()
 
+    # Base path for this device's longitudinal results
     base_path = os.path.join(os.path.expanduser(args.base_dir), args.device)
-    output_base_path = base_path  # Save CSVs alongside analysis; change if you prefer
+    output_base_path = base_path  # CSVs go alongside analysis
+
+    # Optional: per-device first-party domain suffixes
+    # Expected file: analysis/<device>/first_party_domains.txt
+    first_party_file = os.path.join("analysis", args.device, "first_party_domains.txt")
+    first_party_suffixes = []
+    if os.path.exists(first_party_file):
+        with open(first_party_file, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    first_party_suffixes.append(line.lower())
+        print(f"Loaded {len(first_party_suffixes)} first-party suffixes from {first_party_file}")
+    else:
+        print(f"No first-party domain file found at {first_party_file}; using unique_domains only")
 
     years = args.years
     months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -124,19 +168,20 @@ def main():
             domain_list_path = os.path.join(folder_path, "domain_list")
 
             contacted_domains_file = os.path.join(domain_list_path, "contacted_domains.json")
-            unique_domains_file    = os.path.join(domain_list_path, "unique_domains.json")
-            ip_map_file            = os.path.join(domain_list_path, "ip_domain_map.pkl")
+            unique_domains_file = os.path.join(domain_list_path, "unique_domains.json")
+            ip_map_file = os.path.join(domain_list_path, "ip_domain_map.pkl")
 
-            if not (os.path.exists(contacted_domains_file) and
-                    os.path.exists(unique_domains_file) and
-                    os.path.exists(ip_map_file)):
+            if not (os.path.exists(contacted_domains_file)
+                    and os.path.exists(unique_domains_file)
+                    and os.path.exists(ip_map_file)):
                 continue
 
+            # Load raw data
             contacted_raw = load_json(contacted_domains_file)
-            unique_raw    = load_json(unique_domains_file)
-            ip_map        = load_pickle(ip_map_file)
+            unique_raw = load_json(unique_domains_file)
+            ip_map = load_pickle(ip_map_file)
 
-            # Normalize contacted_domains to a flat list of domains
+            # Normalise contacted_domains: list or dict {"..": [list]}
             if isinstance(contacted_raw, dict):
                 tmp = []
                 for v in contacted_raw.values():
@@ -146,13 +191,25 @@ def main():
             else:
                 contacted_domains = contacted_raw
 
-            # Normalize unique_domains: use list directly or dict keys
+            # Normalise unique_domains similarly
             if isinstance(unique_raw, dict):
-                unique_domains = list(unique_raw.keys())
+                # If it looks like the newer "{ '..': [list of all domains] }" shape,
+                # DO NOT treat this as a curated first-party list.
+                if ".." in unique_raw and isinstance(unique_raw[".."], list):
+                    unique_domains = []  # no special first-party info here
+                else:
+                    unique_domains = list(unique_raw.keys())
             else:
                 unique_domains = unique_raw
 
-            categorized_data = categorize_domains(contacted_domains, unique_domains, ip_map)
+
+            categorized_data = categorize_domains(
+                contacted_domains,
+                unique_domains,
+                ip_map,
+                first_party_suffixes=first_party_suffixes
+            )
+
             for entry in categorized_data:
                 entry.insert(0, f"{month}-{year}")
 
